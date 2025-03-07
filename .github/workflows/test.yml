@@ -1,0 +1,46 @@
+name: Run Test
+
+on:
+  workflow_dispatch:
+  
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]    
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checking out code
+        uses: actions/checkout@v4
+
+      - name: Set Node.js 20.18.0
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.18.0
+
+      - name: Installing deps 
+        run: |
+          cd backend
+          npm install
+          cd ..
+          cd frontend
+          npm install    
+
+      - name: Configure Datadog Test Optimization
+        uses: datadog/test-visibility-github-action@v2
+        with:
+          languages: js
+          api_key: ${{ secrets.DD_API_KEY }}
+          site: us5.datadoghq.com
+
+      - name: run test
+        run: |
+          cd backend
+          npm test
+          cd ..
+          cd frontend
+          npm test 
+        env:
+         NODE_OPTIONS: -r ${{env.DD_TRACE_PACKAGE}}
