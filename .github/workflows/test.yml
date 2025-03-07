@@ -40,4 +40,5 @@ jobs:
           cd ..
           cd frontend
           npm test 
-
+        env:
+         NODE_OPTIONS: -r ${{env.DD_TRACE_PACKAGE}}
