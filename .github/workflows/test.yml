@@ -2,11 +2,11 @@ name: Run Test
 
 on:
   workflow_dispatch:
-  
+
   pull_request:
     branches: ["main"]
   push:
-    branches: ["main"]    
+    branches: ["main"]
 
 jobs:
   test:
@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 20.18.0
 
-      - name: Installing deps 
+      - name: Installing deps
         run: |
           cd backend
           npm install
@@ -28,12 +28,81 @@ jobs:
           cd frontend
           npm install    
 
-      - name: Configure Datadog Test Optimization
-        uses: datadog/test-visibility-github-action@v2
-        with:
-          languages: js
-          api_key: ${{ secrets.DD_API_KEY }}
-          site: us5.datadoghq.com
+      - name: Set GitHub Path
+        run: echo "$GITHUB_ACTION_PATH" >> $GITHUB_PATH
+        shell: bash
+        env:
+          GITHUB_ACTION_PATH: ${{ github.action_path }}
+
+      - name: Download and run configuration script
+        id: run-configuration-script
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/.datadog
+  
+          if [ "$GITHUB_WORKSPACE" != "/github/workspace" ] && mkdir -p /github/workspace >/dev/null 2>&1; then
+            # See https://docs.github.com/en/actions/creating-actions/creating-a-docker-container-action#accessing-files-created-by-a-container-action
+            # When running a Docker container action, the Github workspace is available at a hard-coded path of /github/workspace
+            # When running a "regular", the workspace path varies.
+            # The symlink trick below is needed to make the same path /github/workspace/.datadog available for all types of actions
+            if [ ! -e /github/workspace/.datadog ]; then
+              ln -s $GITHUB_WORKSPACE/.datadog /github/workspace/.datadog
+            fi
+            export DD_TRACER_FOLDER=/github/workspace/.datadog
+          else
+            export DD_TRACER_FOLDER=$GITHUB_WORKSPACE/.datadog
+          fi
+  
+          script_filepath="install_test_visibility.sh"
+  
+          if command -v curl >/dev/null 2>&1; then
+            curl -Lo "$script_filepath" "$INSTALLATION_SCRIPT_URL"
+          elif command -v wget >/dev/null 2>&1; then
+            wget -O "$script_filepath" "$INSTALLATION_SCRIPT_URL"
+          else
+            >&2 echo "Error: Neither wget nor curl is installed."
+            exit 1
+          fi
+  
+          if command -v sha256sum >/dev/null 2>&1; then
+            if ! echo "$INSTALLATION_SCRIPT_CHECKSUM $script_filepath" | sha256sum --quiet -c -; then
+              exit 1
+            fi
+          elif command -v shasum >/dev/null 2>&1; then
+            if ! echo "$INSTALLATION_SCRIPT_CHECKSUM  $script_filepath" | shasum --quiet -a 256 -c -; then
+              exit 1
+            fi
+          else
+            >&2 echo "Error: Neither sha256sum nor shasum is installed."
+            exit 1
+          fi
+  
+          chmod +x $script_filepath
+          ./$script_filepath >> "$GITHUB_ENV"
+        shell: bash
+        env:
+          DD_CIVISIBILITY_INSTRUMENTATION_LANGUAGES: "js"
+          DD_API_KEY: ${{ inputs.api-key != '' && inputs.api-key || inputs.api_key }}
+          DD_SITE: ${{ inputs.site }}
+          DD_SET_TRACER_VERSION_JS: ${{ inputs.js-tracer-version }}
+          INSTALLATION_SCRIPT_URL: https://install.datadoghq.com/scripts/install_test_visibility_v9.sh
+          INSTALLATION_SCRIPT_CHECKSUM: dc524d824779b96fee12f6bf28b12f7da5c7095499bb82bc07981bdb60d6623a
+
+      - name: Propagate optional site input to environment variable
+        run: |
+          echo "DD_SITE=${{ inputs.site }}" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: Propagate optional service input to environment variable
+        if: "${{ inputs.service != '' || inputs.service-name != '' }}"
+        run: |
+          echo "DD_SERVICE=${{ inputs.service-name != '' && inputs.service-name || inputs.service }}" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: Propagate API key from input to environment variables and set provider
+        run: |
+          echo "DD_API_KEY=${{ inputs.api-key != '' && inputs.api-key || inputs.api_key }}" >> "$GITHUB_ENV"
+          echo "DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER=github" >> "$GITHUB_ENV"
+        shell: bash
 
       - name: run test
         run: |
@@ -41,6 +110,6 @@ jobs:
           npm test
           cd ..
           cd frontend
-          npm test 
+          npm test
         env:
          NODE_OPTIONS: -r ${{env.DD_TRACE_PACKAGE}}
