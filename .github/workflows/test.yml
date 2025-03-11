@@ -107,7 +107,7 @@ jobs:
       - name: run test
         run: |
           cd backend
-          npm test
+          npm run test -- --coverage
           cd ..
           cd frontend
           npm test
