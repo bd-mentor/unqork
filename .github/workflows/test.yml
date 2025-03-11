@@ -80,7 +80,7 @@ jobs:
           ./$script_filepath >> "$GITHUB_ENV"
         shell: bash
         env:
-          DD_CIVISIBILITY_INSTRUMENTATION_LANGUAGES: ${{ inputs.languages }}
+          DD_CIVISIBILITY_INSTRUMENTATION_LANGUAGES: "js"
           DD_API_KEY: ${{ inputs.api-key != '' && inputs.api-key || inputs.api_key }}
           DD_SITE: ${{ inputs.site }}
           DD_SET_TRACER_VERSION_JS: ${{ inputs.js-tracer-version }}
