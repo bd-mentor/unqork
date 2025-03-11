@@ -31,6 +31,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set Node.js 20.18.0
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.18.0
+
+      - name: Installing deps
+        run: |
+          cd backend
+          npm install
+          npm run test -- --coverage
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

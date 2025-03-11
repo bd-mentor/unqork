@@ -5,8 +5,6 @@ on:
 
   pull_request:
     branches: ["main"]
-  push:
-    branches: ["main"]
 
 jobs:
   test:
@@ -107,7 +105,7 @@ jobs:
       - name: run test
         run: |
           cd backend
-          npm run test -- --coverage
+          npm test
           cd ..
           cd frontend
           npm test
